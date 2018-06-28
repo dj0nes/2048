@@ -1,7 +1,17 @@
+const readline = require('readline');
+
 class Board {
-    constructor(board_size) {
+    constructor(board_size=4, board_array) {
         this.board_size = board_size
-        this.board = []
+        if(board_array !== undefined && Array.isArray(board_array) && board_array.length === board_size * board_size) {
+            this.board = board_array
+        }
+        else {
+            this.board = []
+            for(let i = 0; i < board_size * board_size; i++) {
+                this.board.push(0)
+            }
+        }
         this.tokens = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
         this.transitions = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
         this.boardTransitions = {
@@ -29,7 +39,7 @@ class Board {
                 row = ''
             }
 
-            row += ' ' + this.board[i]
+            row += '\t' + this.board[i]
         }
     }
 
@@ -65,6 +75,36 @@ class Board {
         }
     }
 
+    insertTokenAtRandom(index, value) {
+        let zero_indices = this.board.reduce(function(accum, val, index) {
+            if(val === 0) {
+                accum.push(index)
+            }
+            return accum
+        }, [])
+
+        if(zero_indices.length === 0) {
+            return this.board
+        }
+
+        let random_index = Math.random()
+        let random_value = Math.random()
+
+        let new_value = random_value <= 0.9 ? this.tokens[0] : this.tokens[1]
+        if(value !== undefined) {
+            new_value = value
+        }
+
+        let new_index = Math.floor(random_index * zero_indices.length)
+        if(index !== undefined) {
+            new_index = index
+        }
+
+        this.board[zero_indices[new_index]] = new_value
+
+        return this.board
+    }
+
     transformArray(arr) {
         // this performs the smushing of tokens recursively, assuming smush left
 
@@ -75,10 +115,13 @@ class Board {
             if(arr.length === 0) {
                 return []
             }
+            if(arr.every(el => el === 0)) {
+                return arr
+            }
 
             let numbers = arr.filter(el => el !== 0);
             let first = numbers.shift()
-            let second = numbers.shift()
+            let second = numbers.shift() || 0
 
             if(first === second) {
                 let next = this.transition(first)
@@ -156,13 +199,113 @@ class Board {
         return this.board
     }
 }
+class Game {
+    constructor(board) {
+        if(board === undefined) {
+            this.board = new Board(4)
+            this.board.insertTokenAtRandom()
+            this.board.insertTokenAtRandom()
+        }
+        else {
+            this.board = board
+        }
 
-let board = new Board(4)
-board.board = board.makeBoard()
-board.printBoard()
-console.log(board.getColumn(0))
-console.log(board.getRow(3))
-console.log(board.transition(1024))
-console.log(board.transformArray([2, 8, 4, 4]))
-board.transformBoard('down')
-board.printBoard()
+        this.board.printBoard()
+
+        this.moveAliases = { w: 'up', s: 'down', a: 'left', d: 'right' }
+        this.movesMade = 0
+        this.score = 0
+        this.readline = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+    }
+
+    play() {
+        this.readline.question('\nMove (W, A, S, D): ', (direction) => {
+            this.makeMove(direction)
+            this.board.printBoard()
+            this.play()
+            // rl.close()
+        })
+    }
+
+    makeMove(direction) {
+        let legal_move = this.getLegalMove(direction)
+        if(!legal_move) {
+            console.error('invalid move, bruh')
+            return
+        }
+
+        let previous_board = this.board.board
+        this.board.transformBoard(legal_move)
+
+        if(this.board.toString() === previous_board.toString()) {
+            // nothing changed! This is an illegal move, so revert and return
+            this.board.board = previous_board
+            return
+        }
+
+        if(this.isGameLost()) {
+            this.handleGameLost()
+        }
+
+        if(this.isGameWon()) {
+            this.handleGameWon()
+        }
+
+        this.movesMade++
+        this.board.insertTokenAtRandom()
+    }
+
+    getLegalMove(direction) {
+        let the_move = direction.toLowerCase()
+        if(this.moveAliases.hasOwnProperty(the_move)) {
+            the_move = this.moveAliases[the_move]
+        }
+
+        if(this.board.boardTransitions.hasOwnProperty(the_move)) {
+            return the_move
+        }
+        else {
+            return false
+        }
+    }
+
+    isGameLost() {
+        return this.board.board.every(el => el > 0)
+    }
+
+    isGameWon() {
+        return this.board.board.some(el => el === this.board.tokens[this.board.tokens.length - 1])
+    }
+
+    handleGameLost() {
+        console.log('You lose! Hah!')
+        process.exit(1)
+    }
+
+    handleGameWon() {
+        console.log('You win! Amazing!')
+        process.exit(0)
+    }
+}
+
+function tests() {
+    let board = new Board(4)
+    board.board = board.makeBoard()
+    board.printBoard()
+    console.log(board.getColumn(0))
+    console.log(board.getRow(3))
+    console.log(board.transition(1024))
+    console.log(board.transformArray([2, 8, 4, 4]))
+    board.transformBoard('down')
+    board.printBoard()
+    board.insertTokenAtRandom(0, 4)
+    board.printBoard()
+    board.insertTokenAtRandom()
+    board.printBoard()
+}
+
+let g = new Game()
+g.play()

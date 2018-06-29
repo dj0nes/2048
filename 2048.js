@@ -108,6 +108,8 @@ class Board {
     transformArray(arr) {
         // this performs the smushing of tokens recursively, assuming smush left
 
+        let points = 0
+
         let helper = (arr) => {
             if(arr.length === 1) {
                 return arr
@@ -123,8 +125,9 @@ class Board {
             let first = numbers.shift()
             let second = numbers.shift() || 0
 
-            if(first === second) {
+            if(first === second && first !== 0) {
                 let next = this.transition(first)
+                points += next
                 return [next].concat(helper(numbers))
             }
             else {
@@ -141,10 +144,12 @@ class Board {
             }
         }
 
-        return transformed
+        return {transformed, points}
     }
 
     transformBoard(direction) {
+        let total_points = 0
+
         if(!this.boardTransitions.hasOwnProperty(direction)) {
             console.error('invalid move')
             return this.board
@@ -175,7 +180,9 @@ class Board {
 
         // do the transformation!
         for(let i = 0; i < data.length; i++) {
-            data[i] = this.transformArray(data[i])
+            let {transformed, points} = this.transformArray(data[i])
+            data[i] = transformed
+            total_points += points
             if(reverse) {
                 data[i] = data[i].reverse()
             }
@@ -196,7 +203,7 @@ class Board {
             this.board = data.reduce((accumulator, arr) => accumulator.concat(arr))
         }
 
-        return this.board
+        return total_points
     }
 }
 class Game {
@@ -224,6 +231,7 @@ class Game {
     play() {
         this.readline.question('\nMove (W, A, S, D): ', (direction) => {
             this.makeMove(direction)
+            console.log(`\nscore: ${this.score}`)
             this.board.printBoard()
             this.play()
             // rl.close()
@@ -237,14 +245,16 @@ class Game {
             return
         }
 
-        let previous_board = this.board.board
-        this.board.transformBoard(legal_move)
+        let previous_board = this.board.board.slice(0);  // this creates a shallow copy, fine for primitive contents
+        let points = this.board.transformBoard(legal_move)
 
-        if(this.board.toString() === previous_board.toString()) {
+        if(this.board.board.toString() === previous_board.toString()) {
             // nothing changed! This is an illegal move, so revert and return
             this.board.board = previous_board
             return
         }
+
+        this.score += points
 
         if(this.isGameLost()) {
             this.handleGameLost()
